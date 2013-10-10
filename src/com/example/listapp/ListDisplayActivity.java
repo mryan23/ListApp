@@ -1,14 +1,28 @@
 package com.example.listapp;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.DefaultHttpClient;
+
 import android.app.Activity;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.View;
+import android.view.View.OnClickListener;
+import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
-import android.widget.Space;
 import android.widget.TextView;
 
 import com.example.listapp.list.model.List;
@@ -19,6 +33,8 @@ public class ListDisplayActivity extends Activity {
 
 	LinearLayout layout;
 	TextView title;
+	List list;
+	Gson gson=new Gson();
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -27,29 +43,73 @@ public class ListDisplayActivity extends Activity {
 
 		layout = (LinearLayout) findViewById(R.id.ListViewLinearLayout);
 		title = (TextView) findViewById(R.id.listNameTextView);
+		
+		GetList gl = new GetList();
+		gl.execute("http://10.0.2.2:8080/api/list/list%201");
+		
+		Button save = (Button)findViewById(R.id.dummySaveButton);
+		save.setOnClickListener(new OnClickListener(){
 
-		List l = new List();
-		l.setName("List 1");
-		ListObject[] items = new ListObject[3];
-		ListObject item0 = new ListObject();
-		item0.setName("Item0");
-		items[0] = item0;
-		ListObject item1 = new ListObject();
-		item1.setName("Item1");
-		ListObject subItem10 = new ListObject();
-		subItem10.setName("SubItem10");
-		ListObject[] subItems = { subItem10 };
-		item1.setItems(subItems);
-		item1.setCompleted(true);
-		items[1] = item1;
-		l.setItems(items);
-		ListObject item2 = new ListObject();
-		item2.setName("Item2");
-		items[2]=item2;
+			@Override
+			public void onClick(View v) {
+				PostList pl = new PostList();
+				pl.execute("http://10.0.2.2:8080/api/list/list%201");
+				
+			}
+			
+		});
+	}
+	
+	private class PostList extends AsyncTask<String,Void,String>{
 
-		Gson gson = new Gson();
-		Log.d("JSON", gson.toJson(l));
-		populateList(l);
+		@Override
+		protected String doInBackground(String... params) {
+			HttpClient client = new DefaultHttpClient();
+			HttpPost req = new HttpPost(params[0]);
+			req.setHeader("content-type", "application/json");
+			try {
+				req.setEntity(new StringEntity(gson.toJson(list)));
+				HttpResponse resp = client.execute(req);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			return null;
+		}
+		
+	}
+	
+	private class GetList extends AsyncTask<String,Void,String>{
+
+		@Override
+		protected String doInBackground(String... urls) {
+			try{
+				HttpClient client = new DefaultHttpClient();
+				HttpGet request = new HttpGet(urls[0]);
+				Log.d("HERE",request.getURI().toString());
+				HttpResponse response = client.execute(request);
+				
+				InputStream in = response.getEntity().getContent();
+				BufferedReader reader = new BufferedReader(
+						new InputStreamReader(in));
+				StringBuilder sb = new StringBuilder();
+				String line = null;
+				while ((line = reader.readLine()) != null) {
+					sb.append(line + "\n");
+				}
+				String httpResponseVal = sb.toString();
+				return httpResponseVal;
+			}catch(Exception e){
+				e.printStackTrace();
+				Log.d("CRAP","CRAP");
+				return null;
+			}
+		}
+		protected void onPostExecute(String result){
+			populateList(gson.fromJson(result, List.class));
+		}
+		
 	}
 
 	@Override
@@ -60,6 +120,7 @@ public class ListDisplayActivity extends Activity {
 	}
 
 	private void populateList(List l) {
+		list = l;
 		title.setText(l.getName());
 		ListObject[] items = l.getItems();
 		for (int i = 0; i < items.length; i++) {
@@ -68,9 +129,12 @@ public class ListDisplayActivity extends Activity {
 	}
 
 	private void addListObject(ListObject obj, int level) {
+		if(obj.isDeleted())
+			return;
 		CheckBox cb = new CheckBox(this);
-		cb.setSelected(obj.isCompleted());
+		cb.setChecked(obj.isCompleted());
 		cb.setText(obj.getName());
+		cb.setOnCheckedChangeListener(new CheckChange(obj));
 		LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,LinearLayout.LayoutParams.FILL_PARENT);
 		params.setMargins(level*25,0,0,0);
 		cb.setLayoutParams(params);
@@ -84,5 +148,20 @@ public class ListDisplayActivity extends Activity {
 		} catch (NullPointerException e) {
 		}
 	}
+	private class CheckChange implements OnCheckedChangeListener{
+		ListObject object;
+		public CheckChange(ListObject obj){
+			object = obj;
+		}
+		@Override
+		public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+			// TODO Auto-generated method stub
+			object.setCompleted(isChecked);
+			
+		}
+		
+	}
+
+	
 
 }
