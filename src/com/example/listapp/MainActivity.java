@@ -7,9 +7,11 @@ import android.view.Menu;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
+import android.widget.EditText;
 
 public class MainActivity extends Activity {
 
+	EditText userField,ipField,portField;
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -19,12 +21,18 @@ public class MainActivity extends Activity {
 
 			@Override
 			public void onClick(View v) {
-				Intent i = new Intent(getApplicationContext(),ListDisplayActivity.class);
+				Intent i = new Intent(getApplicationContext(),AllListsActivity.class);
+				i.putExtra("USER", userField.getText().toString());
+				i.putExtra("IP", ipField.getText().toString());
+				i.putExtra("PORT", portField.getText().toString());
 				startActivity(i);
 				
 			}
 			
 		});
+		userField = (EditText)findViewById(R.id.userNameTextField);
+		ipField = (EditText)findViewById(R.id.ipAddressTextField);
+		portField = (EditText)findViewById(R.id.portTextField);
 	}
 
 	@Override
