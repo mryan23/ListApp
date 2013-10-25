@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -17,6 +18,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -61,8 +63,13 @@ public class ListDisplayActivity extends Activity {
 	String user;
 	String name, ip, port;
 	float initialz = 0;
-	Context context;
+	ListDisplayActivity context;
 	LatLng reminderLocation;
+	SensorManager mSensorManager;
+	SensorEventListener accelerometerListener, lightListener;
+	View background;
+	ArrayList<EditText> itemFields=new ArrayList<EditText>();
+	ArrayList<CheckBox> checkBoxes=new ArrayList<CheckBox>();
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -78,6 +85,7 @@ public class ListDisplayActivity extends Activity {
 		layout = (LinearLayout) findViewById(R.id.ListViewLinearLayout);
 		title = (TextView) findViewById(R.id.listNameTextView);
 		scroll = (ScrollView) findViewById(R.id.listDisplayScrollView);
+		background = findViewById(R.id.listDisplayBackground);
 		title.setBackgroundColor(0);
 		title.setFocusable(false);
 
@@ -128,65 +136,58 @@ public class ListDisplayActivity extends Activity {
 
 		});
 
-		SensorManager mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+		
+
+	}
+	
+	protected void onResume(){
+		super.onResume();
+		mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 		if (mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null) {
-			Sensor sensor = mSensorManager
+			Sensor accelSensor = mSensorManager
 					.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-			mSensorManager.registerListener(new SensorEventListener() {
+			accelerometerListener = new AccelerometerListener();
+			mSensorManager.registerListener(accelerometerListener, accelSensor, SensorManager.SENSOR_DELAY_UI);
+		}
+		if(mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)!=null){
+			Sensor lightSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
+			lightListener = new SensorEventListener(){
 
 				@Override
 				public void onAccuracyChanged(Sensor sensor, int accuracy) {
 					// TODO Auto-generated method stub
-
+					
 				}
 
 				@Override
 				public void onSensorChanged(SensorEvent event) {
-					final float alpha = 0.8f;
-
-					// Isolate the force of gravity with the low-pass filter.
-					float gravity[] = new float[3];
-					float linear_acceleration[] = new float[3];
-					gravity[0] = alpha * gravity[0] + (1 - alpha)
-							* event.values[0];
-					gravity[1] = alpha * gravity[1] + (1 - alpha)
-							* event.values[1];
-					gravity[2] = alpha * gravity[2] + (1 - alpha)
-							* event.values[2];
-					// Log.d("X",""+gravity[0]);
-					// Log.d("Y",""+gravity[1]);
-
-					// Remove the gravity contribution with the high-pass
-					// filter.
-					linear_acceleration[0] = event.values[0] - gravity[0];
-					linear_acceleration[1] = event.values[1] - gravity[1];
-					linear_acceleration[2] = event.values[2] - gravity[2];
-
-					// Log.d("Z",""+linear_acceleration[2]);
-					float z = linear_acceleration[2];
-
-					if (initialz == 0) {
-						initialz = z;
-						return;
+					//title.setText(event.values[0]+"");
+					//title.invalidate();
+					if(event.values[0]<10){
+						background.setBackgroundColor(Color.BLACK);
+						title.setTextColor(Color.WHITE);
+						for(EditText et:itemFields)
+							et.setTextColor(Color.WHITE);
+					}else{
+						background.setBackgroundColor(Color.WHITE);
+						title.setTextColor(Color.BLACK);
+						for(EditText et: itemFields)
+							et.setTextColor(Color.BLACK);
+							
 					}
-					// Log.d("SCROLL",2*scroll.getMaxScrollAmount()+
-					// " "+scroll.getScrollY());
-					if (z - initialz > 2) {
-						if (scroll.canScrollVertically(1)) {
-							Log.d("SCROLL DOWN", "NOW");
-							scroll.setScrollY(scroll.getScrollY() + 100);
-						}
-					} else if (z - initialz < -2) {
-						if (scroll.canScrollVertically(-1)) {
-							scroll.setScrollY(scroll.getScrollY() - 100);
-						}
-					}
-
+					
 				}
-
-			}, sensor, SensorManager.SENSOR_DELAY_NORMAL);
+				
+			};
+			mSensorManager.registerListener(lightListener, lightSensor,SensorManager.SENSOR_DELAY_NORMAL);
 		}
-
+	}
+	protected void onPause(){
+		super.onPause();
+		if(accelerometerListener!=null)
+			mSensorManager.unregisterListener(accelerometerListener);
+		if(lightListener!=null)
+			mSensorManager.unregisterListener(lightListener);
 	}
 
 	@Override
@@ -336,6 +337,8 @@ public class ListDisplayActivity extends Activity {
 	}
 
 	private void populateList(List l) {
+		checkBoxes = new ArrayList<CheckBox>();
+		itemFields = new ArrayList<EditText>();
 		list = l;
 		if (id < 0)
 			id = l.getId();
@@ -367,8 +370,10 @@ public class ListDisplayActivity extends Activity {
 			return;
 		if (obj.isDeleted())
 			return;
+		
 		LinearLayout ll = new LinearLayout(this);
 		CheckBox cb = new CheckBox(this);
+		checkBoxes.add(cb);
 		cb.setChecked(obj.isCompleted());
 		// cb.setText(obj.getName());
 		cb.setOnCheckedChangeListener(new CheckChange(obj));
@@ -379,6 +384,7 @@ public class ListDisplayActivity extends Activity {
 		cb.setLayoutParams(params);
 		ll.addView(cb);
 		EditText et = new EditText(this);
+		itemFields.add(et);
 		et.setText(obj.getName());
 		et.setBackgroundColor(0);
 		et.setLayoutParams(new LinearLayout.LayoutParams(
@@ -484,6 +490,60 @@ public class ListDisplayActivity extends Activity {
 			// TODO Auto-generated method stub
 
 		}
+	}
+	
+	private class AccelerometerListener implements SensorEventListener {
+
+		@Override
+		public void onAccuracyChanged(Sensor sensor, int accuracy) {
+			// TODO Auto-generated method stub
+
+		}
+
+		@Override
+		public void onSensorChanged(SensorEvent event) {
+			final float alpha = 0.8f;
+
+			// Isolate the force of gravity with the low-pass filter.
+			float gravity[] = new float[3];
+			float linear_acceleration[] = new float[3];
+			gravity[0] = alpha * gravity[0] + (1 - alpha)
+					* event.values[0];
+			gravity[1] = alpha * gravity[1] + (1 - alpha)
+					* event.values[1];
+			gravity[2] = alpha * gravity[2] + (1 - alpha)
+					* event.values[2];
+			// Log.d("X",""+gravity[0]);
+			// Log.d("Y",""+gravity[1]);
+
+			// Remove the gravity contribution with the high-pass
+			// filter.
+			linear_acceleration[0] = event.values[0] - gravity[0];
+			linear_acceleration[1] = event.values[1] - gravity[1];
+			linear_acceleration[2] = event.values[2] - gravity[2];
+
+			// Log.d("Z",""+linear_acceleration[2]);
+			float z = linear_acceleration[2];
+
+			if (initialz == 0) {
+				initialz = z;
+				return;
+			}
+			// Log.d("SCROLL",2*scroll.getMaxScrollAmount()+
+			// " "+scroll.getScrollY());
+			if (z - initialz > 2) {
+				if (scroll.canScrollVertically(1)) {
+					Log.d("SCROLL DOWN", "NOW");
+					scroll.setScrollY(scroll.getScrollY() + 100);
+				}
+			} else if (z - initialz < -2) {
+				if (scroll.canScrollVertically(-1)) {
+					scroll.setScrollY(scroll.getScrollY() - 100);
+				}
+			}
+
+		}
+
 	}
 
 }
